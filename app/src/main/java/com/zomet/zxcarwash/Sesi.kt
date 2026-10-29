@@ -122,14 +122,16 @@ object Sesi {
 
         // nama usaha dari server menang atas nilai bawaan app
         val p = o.optJSONObject("pengaturan")
-        if (p != null && p.optString("namaUsaha", "").isNotBlank()) {
+        if (p != null && p.str("namaUsaha").isNotBlank()) {
             val lama = db.bacaPengaturan()
             db.simpanPengaturan(
                 lama.copy(
-                    namaUsaha = p.optString("namaUsaha", lama.namaUsaha),
-                    alamat = p.optString("alamat", lama.alamat),
-                    noHp = p.optString("noHp", lama.noHp),
-                    catatanNota = p.optString("catatanNota", lama.catatanNota),
+                    // `str()` bukan `optString`: kolom JSON null harus jadi ""
+                    // (nilai lama dipakai), bukan teks "null".
+                    namaUsaha = p.str("namaUsaha").ifBlank { lama.namaUsaha },
+                    alamat = p.str("alamat").ifBlank { lama.alamat },
+                    noHp = p.str("noHp").ifBlank { lama.noHp },
+                    catatanNota = p.str("catatanNota").ifBlank { lama.catatanNota },
                     autoUpdate = if (p.has("autoUpdate")) p.optBoolean("autoUpdate") else lama.autoUpdate,
                 )
             )

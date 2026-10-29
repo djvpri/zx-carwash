@@ -480,9 +480,23 @@ fun App(db: Db, izinBluetooth: (() -> Unit) -> Unit) {
                         if (s == null) "-" else "$s hari lagi"
                     } ?: "-",
                     lisensiDariServer = lisensi != null,
-                    onSimpan = {
-                        db.simpanPengaturan(it); pengaturan = it
-                        Toast.makeText(ctx, "Pengaturan tersimpan", Toast.LENGTH_SHORT).show()
+                    onSimpan = { baru ->
+                        db.simpanPengaturan(baru); pengaturan = baru
+                        // Simpan saja tidak cukup: nilai lokal akan ditimpa tarikan
+                        // master berikutnya (server menang), jadi perubahan harus
+                        // dikirim ke server. Dulu tombol ini hanya menulis ke SQLite,
+                        // sehingga catatan nota hilang setiap app dibuka ulang.
+                        scope.launch {
+                            val ok = withContext(Dispatchers.IO) {
+                                Api.patchPengaturan(sesiAktif.token, sesiAktif.outletId, baru)
+                            }
+                            Toast.makeText(
+                                ctx,
+                                if (ok) "Pengaturan tersimpan"
+                                else "Tersimpan di HP — gagal kirim: ${Api.lastError ?: "butuh koneksi"}",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
                     },
                     onCekUpdate = {
                         statusUpdate = "Memeriksa..."

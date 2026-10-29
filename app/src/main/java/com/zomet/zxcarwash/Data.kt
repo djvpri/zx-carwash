@@ -236,11 +236,16 @@ class Db(ctx: Context) : SQLiteOpenHelper(ctx, "zxcarwash.db", null, 1) {
             while (c.moveToNext()) m[c.getString(0)] = c.getString(1)
         }
         val d = Pengaturan()
+        // org.json `optString` mengubah JSON null jadi teks "null". Kalau teks itu
+        // sempat tersimpan, kolom Catatan nota menampilkan kata "null" — persis
+        // yang dilaporkan. Anggap "null"/"NULL" sebagai tidak ada nilai.
+        fun teks(kunci: String): String? =
+            m[kunci]?.takeIf { it.isNotBlank() && !it.equals("null", ignoreCase = true) }
         return Pengaturan(
-            namaUsaha = m["nama_usaha"] ?: d.namaUsaha,
-            alamat = m["alamat"] ?: d.alamat,
-            noHp = m["no_hp"] ?: d.noHp,
-            catatanNota = m["catatan_nota"] ?: d.catatanNota,
+            namaUsaha = teks("nama_usaha") ?: d.namaUsaha,
+            alamat = teks("alamat") ?: d.alamat,
+            noHp = teks("no_hp") ?: d.noHp,
+            catatanNota = teks("catatan_nota") ?: d.catatanNota,
             autoUpdate = (m["auto_update"] ?: "1") == "1",
             paket = m["paket"] ?: d.paket,
             berlakuSampai = m["berlaku_sampai"] ?: d.berlakuSampai,
@@ -271,3 +276,10 @@ class Db(ctx: Context) : SQLiteOpenHelper(ctx, "zxcarwash.db", null, 1) {
         }
     }
 }
+
+/**
+ * Baca teks dari JSON. `optString` bawaan org.json mengembalikan teks "null"
+ * saat nilainya JSON null — itu yang membuat layar menampilkan kata "null".
+ */
+fun JSONObject.str(kunci: String): String =
+    if (isNull(kunci)) "" else optString(kunci, "")
