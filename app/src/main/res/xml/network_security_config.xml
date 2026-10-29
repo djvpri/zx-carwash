@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Server ZX Carwash berjalan di sslip.io tanpa sertifikat yang cocok untuk
+  alamat IP:port, jadi HTTPS tidak bisa dipakai. Tanpa izin ini Android
+  menolak permintaan dengan "Cleartext HTTP traffic ... not permitted".
+  Aplikasi kasir ini memakai server milik sendiri, bukan situs publik.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
