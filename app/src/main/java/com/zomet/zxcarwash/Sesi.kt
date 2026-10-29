@@ -73,15 +73,22 @@ object Sesi {
     fun refreshToken(db: Db): String? =
         db.bacaPengaturanMentah()[K_REFRESH]?.takeIf { it.isNotBlank() }
 
+    private val kunciRefresh = Any()
+
     /**
      * Perbarui access token memakai refresh token tersimpan.
+     *
+     * Disinkronkan: server MEROTASI refresh token sekali pakai, jadi dua thread
+     * yang menyegarkan bersamaan akan membuat yang kalah ditolak 401 — persis
+     * bug yang pernah terjadi di AcuMedis. Hanya satu yang boleh jalan.
+     *
      * @return token akses baru, atau null kalau refresh ditolak (perlu login ulang).
      */
-    fun perbaruiToken(ctx: Context, db: Db): String? {
-        val r = refreshToken(db) ?: return null
-        val o = Api.refresh(r, Api.deviceId(ctx)) ?: return null
+    fun perbaruiToken(ctx: Context, db: Db): String? = synchronized(kunciRefresh) {
+        val r = refreshToken(db) ?: return@synchronized null
+        val o = Api.refresh(r, Api.deviceId(ctx)) ?: return@synchronized null
         simpan(db, o)
-        return o.optString("accessToken", "").takeIf { it.isNotBlank() }
+        o.optString("accessToken", "").takeIf { it.isNotBlank() }
     }
 
     fun keluar(db: Db) = db.hapusPengaturanMentah(

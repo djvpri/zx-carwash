@@ -137,6 +137,25 @@ fun App(db: Db, izinBluetooth: (() -> Unit) -> Unit) {
         onDispose { BluetoothPrinter.onStateChange = null }
     }
 
+    // Pasang penyegar token untuk Api: setiap 401 akan mencoba refresh sekali.
+    // Dipasang di sini (bukan di Api) supaya Api tetap tidak tahu soal Db/Context.
+    // Label lambda ditulis eksplisit: isinya mengembalikan String? untuk Api.
+    LaunchedEffect(Unit) {
+        Api.onRefresh = panggil@{
+            val s0 = Sesi.baca(db)
+            if (s0 == null) return@panggil null
+            val baru = Sesi.perbaruiToken(ctx, db)
+            if (baru != null) {
+                sesi = Sesi.baca(db)
+            } else {
+                // refresh ditolak → sesi benar-benar mati, minta login ulang
+                Sesi.keluar(db)
+                sesi = null
+            }
+            baru
+        }
+    }
+
     // Tarik master & kirim sisa antrean sekali saat app dibuka. Kalau offline,
     // dua-duanya gagal diam-diam — kasir tetap bisa transaksi.
     LaunchedEffect(sesi) {

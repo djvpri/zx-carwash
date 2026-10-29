@@ -36,12 +36,42 @@ object Api {
 
     private data class Hasil(val kode: Int, val isi: String)
 
+    /**
+     * Dipasang sekali saat app start (MainActivity). Mengembalikan access token
+     * baru, atau null kalau refresh ditolak.
+     *
+     * Tanpa ini, access token 60 menit habis dan setiap layar yang sedang
+     * terbuka langsung menampilkan "token expired or invalid" — kasir harus
+     * keluar-masuk akun hanya karena aplikasi dibiarkan terbuka.
+     */
+    var onRefresh: (() -> String?)? = null
+
     private fun kirim(
         path: String,
         metode: String,
         body: String?,
         token: String?,
         timeoutMs: Int = TIMEOUT,
+    ): Hasil {
+        val pertama = kirimSekali(path, metode, body, token, timeoutMs)
+
+        // 401 = access token kedaluwarsa. Coba segarkan sekali, lalu ulangi
+        // permintaan yang sama. Kalau refresh ditolak, biarkan 401 naik ke UI.
+        if (pertama.kode == 401 && token != null) {
+            val baru = onRefresh?.invoke()
+            if (!baru.isNullOrBlank() && baru != token) {
+                return kirimSekali(path, metode, body, baru, timeoutMs)
+            }
+        }
+        return pertama
+    }
+
+    private fun kirimSekali(
+        path: String,
+        metode: String,
+        body: String?,
+        token: String?,
+        timeoutMs: Int,
     ): Hasil {
         val hasil = try {
             val conn = URL(BASE + path).openConnection() as HttpURLConnection

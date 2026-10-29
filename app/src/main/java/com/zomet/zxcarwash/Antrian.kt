@@ -86,7 +86,10 @@ fun LayarAntrian(
             galat != null -> Kartu(Modifier.padding(14.dp)) {
                 Text(galat!!, fontSize = 12.sp, color = OranyeTeks)
                 Text(
-                    "Antrian butuh koneksi — data ini dipakai bersama antar kasir.",
+                    if (galat!!.contains("token", true))
+                        "Sesi berakhir. Buka tab Lainnya → Keluar dari akun, lalu masuk lagi."
+                    else
+                        "Antrian butuh koneksi — data ini dipakai bersama antar kasir.",
                     fontSize = 10.sp, color = TeksRedup, modifier = Modifier.padding(top = 6.dp)
                 )
                 OutlinedButton(
