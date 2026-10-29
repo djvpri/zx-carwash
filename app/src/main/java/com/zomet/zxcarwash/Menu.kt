@@ -1,6 +1,8 @@
 package com.zomet.zxcarwash
 
 import androidx.compose.foundation.background
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -48,7 +50,7 @@ fun LayarMenu(
     LaunchedEffect(kritis, versi) {
         memuat = true
         galat = null
-        val o = Api.produk(sesi.token, kritis)
+        val o = withContext(Dispatchers.IO) { Api.produk(sesi.token, kritis) }
         if (o == null) {
             galat = Api.lastError ?: "Gagal memuat menu"
         } else {

@@ -1,6 +1,8 @@
 package com.zomet.zxcarwash
 
 import androidx.compose.foundation.background
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -52,8 +54,9 @@ fun LayarLayanan(
     LaunchedEffect(versi) {
         memuat = true
         galat = null
-        val p = Api.paket(sesi.token)
-        val a = Api.addon(sesi.token)
+        val (p, a) = withContext(Dispatchers.IO) {
+            Api.paket(sesi.token) to Api.addon(sesi.token)
+        }
         if (p == null && a == null) {
             galat = Api.lastError ?: "Gagal memuat layanan"
         } else {

@@ -1,6 +1,8 @@
 package com.zomet.zxcarwash
 
 import androidx.compose.foundation.background
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -58,8 +60,9 @@ fun LayarShift(
     LaunchedEffect(versi) {
         memuat = true
         galat = null
-        val s = Api.shift(sesi.token)
-        val p = Api.transaksi(sesi.token, "open")
+        val (s, p) = withContext(Dispatchers.IO) {
+            Api.shift(sesi.token) to Api.transaksi(sesi.token, "open")
+        }
         if (s == null && p == null) {
             galat = Api.lastError ?: "Gagal memuat shift"
         } else {

@@ -1,6 +1,8 @@
 package com.zomet.zxcarwash
 
 import androidx.compose.foundation.background
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -42,7 +44,9 @@ fun LayarAntrian(
     suspend fun tarik() {
         memuat = true
         galat = null
-        val o = Api.antrian(sesi.token, if (saring == "aktif") null else saring)
+        val o = withContext(Dispatchers.IO) {
+            Api.antrian(sesi.token, if (saring == "aktif") null else saring)
+        }
         if (o == null) {
             galat = Api.lastError ?: "Gagal memuat antrian"
             memuat = false

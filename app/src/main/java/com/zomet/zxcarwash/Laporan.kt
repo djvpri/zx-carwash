@@ -1,6 +1,8 @@
 package com.zomet.zxcarwash
 
 import androidx.compose.foundation.background
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -44,9 +46,13 @@ fun LayarLaporan(
     LaunchedEffect(periode, versi) {
         memuat = true
         galat = null
-        val h = Api.laporanHarian(sesi.token)
-        val p = Api.laporanPeriode(sesi.token, periode)
-        val trx = Api.transaksi(sesi.token, null, 8)
+        val (h, p, trx) = withContext(Dispatchers.IO) {
+            Triple(
+                Api.laporanHarian(sesi.token),
+                Api.laporanPeriode(sesi.token, periode),
+                Api.transaksi(sesi.token, null, 8)
+            )
+        }
         if (h == null && p == null) {
             galat = Api.lastError ?: "Gagal memuat laporan"
         } else {
