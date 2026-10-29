@@ -143,6 +143,8 @@ fun LayarPengaturan(
     lisensiDariServer: Boolean,
     onKirimSekarang: () -> Unit,
     onTarikMaster: () -> Unit,
+    onBukaLaporan: () -> Unit,
+    onBukaMember: () -> Unit,
     onKeluar: () -> Unit,
     printerTersambung: Boolean,
 ) {
@@ -226,6 +228,24 @@ fun LayarPengaturan(
                     Icon(Icons.Default.Logout, null, Modifier.size(15.dp))
                     Spacer(Modifier.width(6.dp))
                     Text("Keluar dari akun", fontSize = 12.sp, color = OranyeTeks)
+                }
+            }
+
+            JudulKecil("Menu lain")
+            Kartu {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = onBukaLaporan,
+                        modifier = Modifier.weight(1f).height(46.dp), shape = RoundedCornerShape(10.dp)) {
+                        Icon(Icons.Default.BarChart, null, Modifier.size(16.dp))
+                        Spacer(Modifier.width(5.dp))
+                        Text("Laporan", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Teks)
+                    }
+                    OutlinedButton(onClick = onBukaMember,
+                        modifier = Modifier.weight(1f).height(46.dp), shape = RoundedCornerShape(10.dp)) {
+                        Icon(Icons.Default.People, null, Modifier.size(16.dp))
+                        Spacer(Modifier.width(5.dp))
+                        Text("Member", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Teks)
+                    }
                 }
             }
 

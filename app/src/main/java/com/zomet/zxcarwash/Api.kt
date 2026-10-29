@@ -239,6 +239,35 @@ object Api {
         return sukses(kirim(q, "GET", null, token))
     }
 
+    // ---------- Master data: produk, stok, member ----------
+
+    /** GET /v1/produk?kritis=1 — daftar menu kantin beserta stok. */
+    fun produk(token: String, kritisSaja: Boolean = false): JSONObject? =
+        sukses(kirim("/v1/produk" + if (kritisSaja) "?kritis=1" else "", "GET", null, token))
+
+    /** POST /v1/produk {id?, nama, kategori, harga, stok, trackStok, aktif} */
+    fun simpanProduk(token: String, o: JSONObject): JSONObject? =
+        sukses(kirim("/v1/produk", "POST", o.toString(), token))
+
+    /** POST /v1/stok/mutasi {produkId, tipe, qty} */
+    fun mutasiStok(token: String, produkId: String, tipe: String, qty: Int): JSONObject? {
+        val body = JSONObject().put("produkId", produkId).put("tipe", tipe).put("qty", qty).toString()
+        return sukses(kirim("/v1/stok/mutasi", "POST", body, token))
+    }
+
+    /** GET /v1/member — daftar member + poin + saldo. */
+    fun member(token: String): JSONObject? = sukses(kirim("/v1/member", "GET", null, token))
+
+    /** POST /v1/member {id?, nama, telepon, level} */
+    fun simpanMember(token: String, o: JSONObject): JSONObject? =
+        sukses(kirim("/v1/member", "POST", o.toString(), token))
+
+    /** POST /v1/member/:id/saldo {poin, saldo} — nilai negatif boleh. */
+    fun ubahSaldo(token: String, id: String, poin: Int, saldo: Int): JSONObject? {
+        val body = JSONObject().put("poin", poin).put("saldo", saldo).toString()
+        return sukses(kirim("/v1/member/$id/saldo", "POST", body, token))
+    }
+
     /** Model perangkat untuk deviceId — cukup untuk membedakan HP kasir. */
     fun deviceId(ctx: Context): String =
         (android.provider.Settings.Secure.getString(ctx.contentResolver, android.provider.Settings.Secure.ANDROID_ID) ?: "hp")

@@ -101,6 +101,9 @@ private sealed class Layar {
     data object Kasir : Layar()
     data object Antrian : Layar()
     data object Laporan : Layar()
+    data object Menu : Layar()
+    data object Member : Layar()
+    data object Shift : Layar()
     data class Bayar(val bon: Bon) : Layar()
     data object Pengaturan : Layar()
 }
@@ -201,10 +204,9 @@ fun App(db: Db, izinBluetooth: (() -> Unit) -> Unit) {
                 NavItem("Antrian", Icons.Default.FormatListNumbered, layar is Layar.Antrian) {
                     layar = Layar.Antrian
                 }
-                NavItem("Laporan", Icons.Default.BarChart, layar is Layar.Laporan) {
-                    layar = Layar.Laporan
-                }
-                NavItem("Lainnya", Icons.Default.Settings, layar is Layar.Pengaturan) {
+                NavItem("Menu", Icons.Default.Restaurant, layar is Layar.Menu) { layar = Layar.Menu }
+                NavItem("Shift", Icons.Default.PointOfSale, layar is Layar.Shift) { layar = Layar.Shift }
+                NavItem("Lainnya", Icons.Default.MoreHoriz, layar is Layar.Pengaturan) {
                     layar = Layar.Pengaturan
                 }
             }
@@ -239,6 +241,80 @@ fun App(db: Db, izinBluetooth: (() -> Unit) -> Unit) {
                 }
 
                 is Layar.Laporan -> LayarLaporan(sesi = sesiAktif)
+
+                is Layar.Menu -> LayarMenu(
+                    sesi = sesiAktif,
+                    onSimpan = { o, selesai ->
+                        scope.launch {
+                            val r = withContext(Dispatchers.IO) { Api.simpanProduk(sesiAktif.token, o) }
+                            if (r == null) Toast.makeText(ctx, Api.lastError ?: "Gagal simpan",
+                                Toast.LENGTH_LONG).show() else selesai()
+                        }
+                    },
+                    onMutasi = { id, tipe, qty, selesai ->
+                        scope.launch {
+                            val r = withContext(Dispatchers.IO) { Api.mutasiStok(sesiAktif.token, id, tipe, qty) }
+                            if (r == null) Toast.makeText(ctx, Api.lastError ?: "Gagal ubah stok",
+                                Toast.LENGTH_LONG).show() else selesai()
+                        }
+                    }
+                )
+
+                is Layar.Member -> LayarMember(
+                    sesi = sesiAktif,
+                    onSimpan = { o, selesai ->
+                        scope.launch {
+                            val r = withContext(Dispatchers.IO) { Api.simpanMember(sesiAktif.token, o) }
+                            if (r == null) Toast.makeText(ctx, Api.lastError ?: "Gagal simpan",
+                                Toast.LENGTH_LONG).show() else selesai()
+                        }
+                    },
+                    onSaldo = { id, poin, nominal, selesai ->
+                        scope.launch {
+                            val r = withContext(Dispatchers.IO) { Api.ubahSaldo(sesiAktif.token, id, poin, nominal) }
+                            if (r == null) Toast.makeText(ctx, Api.lastError ?: "Gagal ubah saldo",
+                                Toast.LENGTH_LONG).show() else selesai()
+                        }
+                    }
+                )
+
+                is Layar.Shift -> LayarShift(
+                    sesi = sesiAktif,
+                    onBuka = { kasAwal, selesai ->
+                        scope.launch {
+                            val r = withContext(Dispatchers.IO) { Api.bukaShift(sesiAktif.token, kasAwal) }
+                            if (r == null) Toast.makeText(ctx, Api.lastError ?: "Gagal buka shift",
+                                Toast.LENGTH_LONG).show() else {
+                                Toast.makeText(ctx, "Shift dibuka · kas ${Rp(kasAwal)}", Toast.LENGTH_SHORT).show()
+                                selesai()
+                            }
+                        }
+                    },
+                    onTutup = { kasFisik, catatan, selesai ->
+                        scope.launch {
+                            val r = withContext(Dispatchers.IO) { Api.tutupShift(sesiAktif.token, kasFisik, catatan) }
+                            if (r == null) Toast.makeText(ctx, Api.lastError ?: "Gagal tutup shift",
+                                Toast.LENGTH_LONG).show() else {
+                                val selisih = r.optJSONObject("shift")?.optInt("selisih", 0) ?: 0
+                                Toast.makeText(ctx, "Shift ditutup · selisih ${Rp(selisih)}",
+                                    Toast.LENGTH_LONG).show()
+                                selesai()
+                            }
+                        }
+                    },
+                    onBayarBon = { id, metode, jumlah, selesai ->
+                        scope.launch {
+                            val r = withContext(Dispatchers.IO) {
+                                Api.bayarBon(sesiAktif.token, id, metode, jumlah)
+                            }
+                            if (r == null) Toast.makeText(ctx, Api.lastError ?: "Gagal melunasi",
+                                Toast.LENGTH_LONG).show() else {
+                                Toast.makeText(ctx, "Bon lunas", Toast.LENGTH_SHORT).show()
+                                selesai()
+                            }
+                        }
+                    }
+                )
 
                 is Layar.Bayar -> LayarBayar(
                     bon = l.bon, pengaturan = pengaturan,
@@ -314,6 +390,8 @@ fun App(db: Db, izinBluetooth: (() -> Unit) -> Unit) {
                         }
                     },
                     onScanPrinter = { dialogPrinter = true },
+                    onBukaLaporan = { layar = Layar.Laporan },
+                    onBukaMember = { layar = Layar.Member },
                     sesi = sesiAktif,
                     onKirimSekarang = {
                         scope.launch {
