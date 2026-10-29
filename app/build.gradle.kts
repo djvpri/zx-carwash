@@ -15,6 +15,11 @@ val sifatKeystore = Properties().apply {
 // Repo rilis untuk cek update (asset .apk di GitHub Releases).
 val repoRilis = (project.findProperty("CARWASH_REPO") as String?) ?: "djvpri/zx-carwash"
 
+// Alamat API. Bisa ditimpa tanpa menyentuh repo:
+//   ~/.gradle/gradle.properties  ->  CARWASH_API=http://host:3000
+val apiBase = (project.findProperty("CARWASH_API") as String?)
+    ?: "http://bg7dxicf3ixlex0nzzussq6u.103.93.129.94.sslip.io"
+
 android {
     namespace = "com.zomet.zxcarwash"
     compileSdk = 36
@@ -23,9 +28,10 @@ android {
         applicationId = "com.zomet.zxcarwash"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
         buildConfigField("String", "REPO_RILIS", "\"$repoRilis\"")
+        buildConfigField("String", "API_BASE", "\"$apiBase\"")
     }
 
     signingConfigs {

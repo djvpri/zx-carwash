@@ -18,6 +18,9 @@ data class ItemBon(
     val nama: String,
     val harga: Int,
     val qty: Int = 1,
+    /** id di server (paket/addon/produk). Kosong kalau master belum ditarik —
+     *  server tetap menerima bon, hanya komisi otomatis belum bisa dihitung. */
+    val refId: String = "",
 ) {
     val subtotal: Int get() = harga * qty
 }
@@ -123,11 +126,13 @@ class Db(ctx: Context) : SQLiteOpenHelper(ctx, "zxcarwash.db", null, 1) {
         val js = JSONObject().apply {
             put("client_id", b.clientId); put("nomor", b.nomor); put("plat", b.plat)
             put("jenis", b.jenis); put("total", b.total); put("metode", b.metode)
+            put("diskon", b.diskon); put("dibayar", b.dibayar)
             put("created_at", b.createdAt)
             put("items", JSONArray().apply {
                 b.items.forEach { i ->
                     put(JSONObject().apply {
                         put("tipe", i.tipe); put("nama", i.nama); put("harga", i.harga); put("qty", i.qty)
+                        if (i.refId.isNotBlank()) put("refId", i.refId)
                     })
                 }
             })
@@ -167,6 +172,62 @@ class Db(ctx: Context) : SQLiteOpenHelper(ctx, "zxcarwash.db", null, 1) {
         writableDatabase.execSQL(
             "UPDATE outbox SET err=?, status='pending' WHERE id=?", arrayOf(err, id)
         )
+    }
+
+    /** Semua baris tabel pengaturan apa adanya — dipakai Sesi (token) & peta master. */
+    fun bacaPengaturanMentah(): Map<String, String> {
+        val m = mutableMapOf<String, String>()
+        readableDatabase.rawQuery("SELECT kunci, nilai FROM pengaturan", null).use { c ->
+            while (c.moveToNext()) m[c.getString(0)] = c.getString(1) ?: ""
+        }
+        return m
+    }
+
+    fun tulisPengaturanMentah(nilai: Map<String, String>) {
+        val w = writableDatabase
+        nilai.forEach { (k, v) -> w.insertWithOnConflict("pengaturan", null, ContentValues().apply {
+            put("kunci", k); put("nilai", v)
+        }, SQLiteDatabase.CONFLICT_REPLACE) }
+    }
+
+    fun hapusPengaturanMentah(kunci: List<String>) {
+        val w = writableDatabase
+        kunci.forEach { w.delete("pengaturan", "kunci=?", arrayOf(it)) }
+    }
+
+    /** id baris outbox untuk satu clientId — dipakai menandai hasil sync. */
+    fun outboxIdUntuk(clientId: String): Long? =
+        readableDatabase.rawQuery("SELECT id FROM outbox WHERE client_id=?", arrayOf(clientId)).use {
+            if (it.moveToNext()) it.getLong(0) else null
+        }
+
+    /** Simpan nomor bon yang diberikan server ke baris bon lokal. */
+    fun tandaiBonTersinkron(clientId: String, nomorServer: String) {
+        writableDatabase.execSQL(
+            "UPDATE bon SET synced=1, nomor=? WHERE client_id=?",
+            arrayOf(nomorServer.ifBlank { "-" }, clientId)
+        )
+    }
+
+    /** Peta nama → id server, dipakai mengisi refId item bon. */
+    fun simpanPetaMaster(paket: Map<String, String>, addon: Map<String, String>, produk: Map<String, String>) {
+        tulisPengaturanMentah(
+            mapOf(
+                "peta_paket" to JSONObject(paket as Map<*, *>).toString(),
+                "peta_addon" to JSONObject(addon as Map<*, *>).toString(),
+                "peta_produk" to JSONObject(produk as Map<*, *>).toString(),
+            )
+        )
+    }
+
+    fun refIdUntuk(tipe: String, nama: String): String {
+        val kunci = when (tipe) {
+            "cuci" -> "peta_paket"
+            "addon" -> "peta_addon"
+            else -> "peta_produk"
+        }
+        val mentah = bacaPengaturanMentah()[kunci] ?: return ""
+        return runCatching { JSONObject(mentah).optString(nama, "") }.getOrDefault("")
     }
 
     fun bacaPengaturan(): Pengaturan {

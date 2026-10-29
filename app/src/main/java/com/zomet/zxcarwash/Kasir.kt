@@ -114,6 +114,7 @@ fun LayarKasir(
     plat: String,
     jenis: String,
     diskon: Int,
+    db: Db,
     onPlat: (String) -> Unit,
     onJenis: (String) -> Unit,
     onQty: (ItemBon, Int) -> Unit,
@@ -141,7 +142,9 @@ fun LayarKasir(
             Kartu {
                 Layanan.cuci.forEach { (nama, harga, menit) ->
                     val q = items.firstOrNull { it.tipe == "cuci" && it.nama == nama }?.qty ?: 0
-                    BarisItem(nama, "±$menit menit", harga, q) { onQty(ItemBon("cuci", nama, harga), it) }
+                    BarisItem(nama, "±$menit menit", harga, q) {
+                        onQty(ItemBon("cuci", nama, harga, refId = db.refIdUntuk("cuci", nama)), it)
+                    }
                 }
             }
 
@@ -149,7 +152,7 @@ fun LayarKasir(
             Kartu {
                 FlowChips(Layanan.addon.map { it.first }) { nama ->
                     val harga = Layanan.addon.first { it.first == nama }.second
-                    onQty(ItemBon("addon", nama, harga), 1)
+                    onQty(ItemBon("addon", nama, harga, refId = db.refIdUntuk("addon", nama)), 1)
                 }
             }
 
@@ -157,7 +160,9 @@ fun LayarKasir(
             Kartu {
                 Layanan.kantin.forEach { (nama, harga, _) ->
                     val q = items.firstOrNull { it.tipe == "kantin" && it.nama == nama }?.qty ?: 0
-                    BarisItem(nama, "", harga, q) { onQty(ItemBon("kantin", nama, harga), it) }
+                    BarisItem(nama, "", harga, q) {
+                        onQty(ItemBon("kantin", nama, harga, refId = db.refIdUntuk("kantin", nama)), it)
+                    }
                 }
             }
             Spacer(Modifier.height(80.dp))

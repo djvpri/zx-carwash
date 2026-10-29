@@ -131,10 +131,14 @@ fun LayarPengaturan(
     versi: String,
     pendingSync: Int,
     statusUpdate: String?,
+    sesi: Sesi.Info,
     onSimpan: (Pengaturan) -> Unit,
     onCekUpdate: () -> Unit,
     onPasang: () -> Unit,
     onScanPrinter: () -> Unit,
+    onKirimSekarang: () -> Unit,
+    onTarikMaster: () -> Unit,
+    onKeluar: () -> Unit,
     printerTersambung: Boolean,
 ) {
     var nama by remember(p) { mutableStateOf(p.namaUsaha) }
@@ -171,6 +175,36 @@ fun LayarPengaturan(
                 BarisInfo("Berlaku sampai", p.berlakuSampai)
                 BarisInfo("ID lisensi", p.idLisensi)
                 BarisInfo("Antrean sync", "$pendingSync transaksi")
+            }
+
+            JudulKecil("Akun & sinkronisasi")
+            Kartu {
+                Text(sesi.nama.ifBlank { sesi.email }, fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold, color = Teks)
+                Text(sesi.email, fontSize = 11.sp, color = TeksRedup)
+                if (sesi.outletNama != null) BarisInfo("Outlet", sesi.outletNama)
+                BarisInfo("Usaha", sesi.namaUsaha ?: "-")
+                BarisInfo("Antrean sync", "$pendingSync transaksi")
+                Row(Modifier.fillMaxWidth().padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = onKirimSekarang,
+                        modifier = Modifier.weight(1f).height(44.dp), shape = RoundedCornerShape(10.dp)) {
+                        Icon(Icons.Default.CloudUpload, null, Modifier.size(15.dp))
+                        Spacer(Modifier.width(5.dp))
+                        Text("Kirim", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Teks)
+                    }
+                    OutlinedButton(onClick = onTarikMaster,
+                        modifier = Modifier.weight(1f).height(44.dp), shape = RoundedCornerShape(10.dp)) {
+                        Icon(Icons.Default.CloudDownload, null, Modifier.size(15.dp))
+                        Spacer(Modifier.width(5.dp))
+                        Text("Tarik master", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Teks)
+                    }
+                }
+                TextButton(onClick = onKeluar, modifier = Modifier.fillMaxWidth().padding(top = 2.dp)) {
+                    Icon(Icons.Default.Logout, null, Modifier.size(15.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Keluar dari akun", fontSize = 12.sp, color = OranyeTeks)
+                }
             }
 
             JudulKecil("Printer & aplikasi")

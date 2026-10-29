@@ -3,6 +3,7 @@ package com.zomet.zxcarwash
 import android.Manifest
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -32,6 +33,9 @@ import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
 
+    /** Token dari halaman /link Z One lewat `zxcarwash://sso?token=...`. */
+    private var tokenDariLink: String? = null
+
     private var izin: (() -> Unit)? = null
     private val mintaIzin = registerForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
         if (ok) izin?.invoke() else toast("Izin Bluetooth ditolak")
@@ -41,6 +45,33 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_LONG).show()
+
+    /** `zxcarwash://sso?token=...` → token; null kalau bukan tautan SSO. */
+    private fun ambilToken(i: Intent?): String? {
+        val u = i?.data ?: return null
+        if (u.scheme != "zxcarwash" || u.host != "sso") return null
+        return u.getQueryParameter("token")?.takeIf { it.isNotBlank() }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val t = ambilToken(intent) ?: return
+        Thread {
+            val db = Db(this)
+            val o = Api.ssoExchange(t, Api.deviceId(this))
+            if (o == null) {
+                runOnUiThread { toast(Api.lastError ?: "Gagal masuk lewat Z One") }
+                return@Thread
+            }
+            Sesi.simpan(db, o)
+            Sesi.baca(db)?.let { Sesi.tarikMaster(db, it) }
+            runOnUiThread {
+                toast("Masuk sebagai ${Sesi.baca(db)?.nama ?: "pengguna"}")
+                recreate()
+            }
+        }.start()
+    }
 
     /** Android 12+ wajib BLUETOOTH_CONNECT sebelum akses perangkat. */
     private fun pastikanIzinBluetooth(lalu: () -> Unit) {
@@ -55,6 +86,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        tokenDariLink = ambilToken(intent)
         val db = Db(this)
         setContent {
             MaterialTheme(colorScheme = lightColorScheme(primary = Biru)) {
@@ -74,6 +106,7 @@ private sealed class Layar {
 @Composable
 fun App(db: Db, izinBluetooth: (() -> Unit) -> Unit) {
     val ctx = LocalContext.current
+    var sesi by remember { mutableStateOf(Sesi.baca(db)) }
     var layar by remember { mutableStateOf<Layar>(Layar.Kasir) }
     var items by remember { mutableStateOf(listOf<ItemBon>()) }
     var plat by remember { mutableStateOf("") }
@@ -89,6 +122,18 @@ fun App(db: Db, izinBluetooth: (() -> Unit) -> Unit) {
     DisposableEffect(Unit) {
         BluetoothPrinter.onStateChange = { printerOn = it }
         onDispose { BluetoothPrinter.onStateChange = null }
+    }
+
+    // Tarik master & kirim sisa antrean sekali saat app dibuka. Kalau offline,
+    // dua-duanya gagal diam-diam — kasir tetap bisa transaksi.
+    LaunchedEffect(sesi) {
+        val s0 = sesi ?: return@LaunchedEffect
+        withContext(Dispatchers.IO) {
+            Sesi.tarikMaster(db, s0)
+            Sesi.kirimOutbox(ctx, db, s0)
+        }
+        pending = db.pendingSync()
+        pengaturan = db.bacaPengaturan()
     }
 
     // Auto-cek update sekali saat app dibuka (kalau diaktifkan).
@@ -109,12 +154,20 @@ fun App(db: Db, izinBluetooth: (() -> Unit) -> Unit) {
         }
     }
 
+    // Belum login → hanya layar masuk. Transaksi offline tetap butuh akun sekali
+    // di awal supaya data ter-scope ke tenant yang benar.
+    val sesiAktif = sesi
+    if (sesiAktif == null) {
+        LayarMasuk(db) { sesi = Sesi.baca(db) }
+        return
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
                     Column {
-                        Text("Cuci Kantin", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold)
+                        Text(pengaturan.namaUsaha.take(22), fontSize = 16.sp, fontWeight = FontWeight.ExtraBold)
                         Text(
                             "Outlet Melati · ${if (pending == 0) "tersinkron" else "$pending antre sync"}",
                             fontSize = 10.sp, color = TeksRedup
@@ -152,7 +205,7 @@ fun App(db: Db, izinBluetooth: (() -> Unit) -> Unit) {
         Box(Modifier.padding(pad)) {
             when (val l = layar) {
                 is Layar.Kasir -> LayarKasir(
-                    items = items, plat = plat, jenis = jenis, diskon = 0,
+                    items = items, plat = plat, jenis = jenis, diskon = 0, db = db,
                     onPlat = { plat = it.uppercase() }, onJenis = { jenis = it },
                     onQty = ::ubahQty,
                     onBayar = {
@@ -173,6 +226,16 @@ fun App(db: Db, izinBluetooth: (() -> Unit) -> Unit) {
                         val bon = l.bon.copy(metode = metode, dibayar = dibayar)
                         db.simpanBon(bon)
                         pending = db.pendingSync()
+                        // kirim ke server tanpa menunggu: struk sudah tercetak,
+                        // kalau sinyal hilang bon tetap ada di antrean lokal
+                        scope.launch {
+                            val n = withContext(Dispatchers.IO) {
+                                Sesi.kirimOutbox(ctx, db, sesiAktif)
+                            }
+                            pending = db.pendingSync()
+                            if (n > 0) Toast.makeText(ctx, "$n bon terkirim ke server",
+                                Toast.LENGTH_SHORT).show()
+                        }
                         if (cetak) {
                             izinBluetooth {
                                 val err = BluetoothPrinter.write(Struk.bytes(bon, pengaturan))
@@ -218,7 +281,36 @@ fun App(db: Db, izinBluetooth: (() -> Unit) -> Unit) {
                             }
                         }
                     },
-                    onScanPrinter = { dialogPrinter = true }
+                    onScanPrinter = { dialogPrinter = true },
+                    sesi = sesiAktif,
+                    onKirimSekarang = {
+                        scope.launch {
+                            val n = withContext(Dispatchers.IO) { Sesi.kirimOutbox(ctx, db, sesiAktif) }
+                            pending = db.pendingSync()
+                            Toast.makeText(
+                                ctx,
+                                if (n < 0) Api.lastError ?: "Gagal terhubung"
+                                else if (n == 0) "Tidak ada bon menunggu"
+                                else "$n bon terkirim",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    },
+                    onTarikMaster = {
+                        scope.launch {
+                            val ok = withContext(Dispatchers.IO) { Sesi.tarikMaster(db, sesiAktif) }
+                            pengaturan = db.bacaPengaturan()
+                            Toast.makeText(
+                                ctx,
+                                if (ok) "Master diperbarui dari server" else Api.lastError ?: "Gagal tarik master",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    },
+                    onKeluar = {
+                        Sesi.keluar(db)
+                        sesi = null
+                    }
                 )
             }
         }

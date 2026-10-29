@@ -12,3 +12,5 @@ captures/
 *.apk
 *.aab
 *.jks
+.kotlin/
+repo.json
