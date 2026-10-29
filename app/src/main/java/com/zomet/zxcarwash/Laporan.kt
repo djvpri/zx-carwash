@@ -103,6 +103,7 @@ fun LayarLaporan(
                 val bonHari = h.optInt("bon", 0)
                 val mobilHari = h.optInt("mobil", 0)
 
+                JudulKecil("Hari ini (selalu, apa pun pilihan di atas)")
                 Kartu {
                     Text("HARI INI", fontSize = 10.sp, letterSpacing = 1.sp,
                         fontWeight = FontWeight.Bold, color = TeksRedup)
@@ -201,7 +202,7 @@ fun LayarLaporan(
 
                 val pr = rentang ?: JSONObject()
                 if (periode > 1) {
-                    JudulKecil("$periode hari terakhir")
+                    JudulKecil("Ringkasan $periode hari terakhir")
                     Kartu {
                         Text(Rp(pr.optInt("omzet", 0)), fontSize = 22.sp,
                             fontWeight = FontWeight.ExtraBold, color = Teks)
