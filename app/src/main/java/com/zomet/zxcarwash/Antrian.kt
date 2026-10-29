@@ -28,7 +28,11 @@ import org.json.JSONObject
  * layar menampilkan pesan apa adanya, bukan daftar kosong yang menyesatkan.
  */
 @Composable
-fun LayarAntrian(sesi: Sesi.Info, onUbahStatus: (String, String, () -> Unit) -> Unit) {
+fun LayarAntrian(
+    sesi: Sesi.Info,
+    onUbahStatus: (String, String, () -> Unit) -> Unit,
+    onCetakTiket: (JSONObject) -> Unit,
+) {
     var daftar by remember { mutableStateOf<List<JSONObject>>(emptyList()) }
     var memuat by remember { mutableStateOf(true) }
     var galat by remember { mutableStateOf<String?>(null) }
@@ -161,6 +165,7 @@ fun LayarAntrian(sesi: Sesi.Info, onUbahStatus: (String, String, () -> Unit) -> 
                             if (status == "selesai") {
                                 TombolKecil("Sudah diambil", TeksRedup) { onUbahStatus(id, "diambil") { versi++ } }
                             }
+                            TombolKecil("Tiket", TeksRedup) { onCetakTiket(a) }
                             if (status == "diambil") {
                                 Text("Selesai & sudah diserahkan", fontSize = 10.sp, color = TeksRedup,
                                     modifier = Modifier.align(Alignment.CenterVertically))

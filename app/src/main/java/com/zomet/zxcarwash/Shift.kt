@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -39,6 +41,7 @@ fun LayarShift(
     onBuka: (Int, () -> Unit) -> Unit,
     onTutup: (Int, String, () -> Unit) -> Unit,
     onBayarBon: (String, String, Int, () -> Unit) -> Unit,
+    onRekap: (String, (JSONObject?) -> Unit) -> Unit,
 ) {
     var shiftAktif by remember { mutableStateOf<JSONObject?>(null) }
     var riwayat by remember { mutableStateOf<List<JSONObject>>(emptyList()) }
@@ -49,6 +52,8 @@ fun LayarShift(
     var dialogBuka by remember { mutableStateOf(false) }
     var dialogTutup by remember { mutableStateOf(false) }
     var bayar by remember { mutableStateOf<JSONObject?>(null) }
+    var rekap by remember { mutableStateOf<JSONObject?>(null) }
+    var rekapMemuat by remember { mutableStateOf(false) }
 
     LaunchedEffect(versi) {
         memuat = true
@@ -185,11 +190,27 @@ fun LayarShift(
                                     )
                                 }
                                 if (tutup) {
-                                    Text(
-                                        if (selisih == 0) "pas" else (if (selisih > 0) "+" else "") + Rp(selisih),
-                                        fontSize = 11.sp, fontWeight = FontWeight.Bold,
-                                        color = if (selisih == 0) HijauTeks else OranyeTeks
-                                    )
+                                    Column(horizontalAlignment = Alignment.End) {
+                                        Text(
+                                            if (selisih == 0) "pas" else (if (selisih > 0) "+" else "") + Rp(selisih),
+                                            fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                                            color = if (selisih == 0) HijauTeks else OranyeTeks
+                                        )
+                                        Text(
+                                            "rekap",
+                                            fontSize = 10.sp, color = Biru, fontWeight = FontWeight.Bold,
+                                            modifier = Modifier
+                                                .clickable {
+                                                    rekapMemuat = true
+                                                    rekap = null
+                                                    onRekap(s.optString("id")) { r ->
+                                                        rekap = r
+                                                        rekapMemuat = false
+                                                    }
+                                                }
+                                                .padding(top = 2.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -223,6 +244,21 @@ fun LayarShift(
         )
     }
 
+    if (rekapMemuat) {
+        Box(Modifier.fillMaxSize().background(Teks.copy(alpha = 0.25f)), contentAlignment = Alignment.Center) {
+            Column(
+                Modifier.background(Kartu, RoundedCornerShape(14.dp)).padding(20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = Biru)
+                Text("Memuat rekap…", fontSize = 11.sp, color = TeksRedup, modifier = Modifier.padding(top = 8.dp))
+            }
+        }
+    }
+
+    val rk = rekap
+    if (rk != null) DialogRekap(rk) { rekap = null }
+
     val b = bayar
     if (b != null) {
         DialogBayarPiutang(
@@ -233,6 +269,67 @@ fun LayarShift(
             }
         )
     }
+}
+
+/** Rekap satu shift: omzet per metode, kas seharusnya, selisih. */
+@Composable
+private fun DialogRekap(rekap: JSONObject, onTutup: () -> Unit) {
+    val shift = rekap.optJSONObject("shift") ?: JSONObject()
+    val byMetode = rekap.optJSONObject("byMetode") ?: JSONObject()
+    val adaFisik = !shift.isNull("kasFisik")
+    val selisih = rekap.optInt("selisih", 0)
+
+    AlertDialog(
+        onDismissRequest = onTutup,
+        title = { Text("Rekap shift", fontSize = 16.sp, fontWeight = FontWeight.Bold) },
+        text = {
+            Column(Modifier.heightIn(max = 440.dp).verticalScroll(rememberScrollState())) {
+                Text(
+                    Fmt.tanggal(shift.optString("bukaAt")) + " " + Fmt.jam(shift.optString("bukaAt")) + " - " +
+                        Fmt.jam(shift.optString("tutupAt")),
+                    fontSize = 11.sp, color = TeksRedup
+                )
+                HorizontalDivider(Modifier.padding(vertical = 8.dp), color = Garis)
+                BarisInfo("Bon", rekap.optInt("bon", 0).toString())
+                BarisInfo("Omzet", Rp(rekap.optInt("omzet", 0)))
+                BarisInfo("Cuci", Rp(rekap.optInt("cuci", 0)))
+                BarisInfo("Kantin", Rp(rekap.optInt("kantin", 0)))
+                BarisInfo("Diskon", Rp(rekap.optInt("diskon", 0)))
+                HorizontalDivider(Modifier.padding(vertical = 8.dp), color = Garis)
+                byMetode.keys().forEach { k ->
+                    BarisInfo(k.replaceFirstChar { it.uppercase() }, Rp(byMetode.optInt(k, 0)))
+                }
+                HorizontalDivider(Modifier.padding(vertical = 8.dp), color = Garis)
+                BarisInfo("Kas awal", Rp(shift.optInt("kasAwal", 0)))
+                BarisInfo("Kas seharusnya", Rp(rekap.optInt("kasSistem", 0)))
+                if (adaFisik) {
+                    BarisInfo("Kas fisik", Rp(shift.optInt("kasFisik", 0)))
+                    Row(
+                        Modifier.fillMaxWidth().padding(top = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Selisih", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Teks)
+                        Text(
+                            if (selisih == 0) "pas" else (if (selisih > 0) "+" else "-") + Rp(Math.abs(selisih)),
+                            fontSize = 13.sp, fontWeight = FontWeight.ExtraBold,
+                            color = if (selisih == 0) HijauTeks else OranyeTeks
+                        )
+                    }
+                }
+                val note = shift.optString("catatan", "").removePrefix("[demo] ")
+                if (note.isNotBlank()) {
+                    Text(note, fontSize = 10.sp, color = TeksRedup, modifier = Modifier.padding(top = 8.dp))
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onTutup,
+                shape = RoundedCornerShape(10.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Biru)
+            ) { Text("Tutup", fontSize = 13.sp, fontWeight = FontWeight.Bold) }
+        }
+    )
 }
 
 @Composable

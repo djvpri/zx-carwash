@@ -145,6 +145,7 @@ fun LayarPengaturan(
     onTarikMaster: () -> Unit,
     onBukaLaporan: () -> Unit,
     onBukaMember: () -> Unit,
+    onBukaLayanan: () -> Unit,
     onKeluar: () -> Unit,
     printerTersambung: Boolean,
 ) {
@@ -246,6 +247,13 @@ fun LayarPengaturan(
                         Spacer(Modifier.width(5.dp))
                         Text("Member", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Teks)
                     }
+                }
+                OutlinedButton(onClick = onBukaLayanan,
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp).height(46.dp),
+                    shape = RoundedCornerShape(10.dp)) {
+                    Icon(Icons.Default.LocalCarWash, null, Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Paket cuci & add-on", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Teks)
                 }
             }
 

@@ -268,6 +268,22 @@ object Api {
         return sukses(kirim("/v1/member/$id/saldo", "POST", body, token))
     }
 
+    // ---------- Paket layanan & add-on ----------
+
+    fun paket(token: String): JSONObject? = sukses(kirim("/v1/paket", "GET", null, token))
+
+    fun simpanPaket(token: String, o: JSONObject): JSONObject? =
+        sukses(kirim("/v1/paket", "POST", o.toString(), token))
+
+    fun addon(token: String): JSONObject? = sukses(kirim("/v1/addon", "GET", null, token))
+
+    fun simpanAddon(token: String, o: JSONObject): JSONObject? =
+        sukses(kirim("/v1/addon", "POST", o.toString(), token))
+
+    /** GET /v1/shift/:id/rekap — omzet, per metode, kas sistem, selisih. */
+    fun rekapShift(token: String, id: String): JSONObject? =
+        sukses(kirim("/v1/shift/$id/rekap", "GET", null, token))?.optJSONObject("rekap")
+
     /** Model perangkat untuk deviceId — cukup untuk membedakan HP kasir. */
     fun deviceId(ctx: Context): String =
         (android.provider.Settings.Secure.getString(ctx.contentResolver, android.provider.Settings.Secure.ANDROID_ID) ?: "hp")

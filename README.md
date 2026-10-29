@@ -22,12 +22,16 @@ Kasir Android untuk usaha **cuci mobil + kantin**: satu bon gabungan, offline-fi
 | Buka & tutup shift (kas fisik vs sistem) | ada |
 | Pelunasan bon piutang dari app | ada |
 | Member: daftar, tambah/ubah, isi & tarik saldo, poin | ada |
+| Layanan: paket cuci (4 harga + komisi) & add-on | ada |
+| Rekap per shift (omzet per metode, selisih kas) | ada |
+| Cetak tiket antrian + cetak ulang struk dari Laporan | ada |
+| Printer tersambung otomatis saat app dibuka | ada |
 | Struk thermal ESC/POS 58mm + pratinjau 32 kolom | ada |
 | Printer Bluetooth SPP (pairing, monitor putus, reconnect) | ada |
 | Pengaturan usaha: nama, alamat, no HP, catatan nota | ada |
 | Lisensi (paket, berlaku sampai, sisa, ID) — tampil saja | ada |
 | Cek update manual + auto-cek saat app dibuka (GitHub Releases) | ada |
-| Kelola layanan (paket cuci) dari app, laporan per shift, cetak tiket antrian | belum |
+| Split pembayaran, QRIS dinamis, logo usaha di struk, ekspor laporan | belum |
 
 ## Build
 

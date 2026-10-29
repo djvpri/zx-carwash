@@ -1,6 +1,7 @@
 package com.zomet.zxcarwash
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -28,9 +29,13 @@ import org.json.JSONObject
  * jadi tidak ada penjumlahan di app yang bisa berbeda dengan server.
  */
 @Composable
-fun LayarLaporan(sesi: Sesi.Info) {
+fun LayarLaporan(
+    sesi: Sesi.Info,
+    onCetakUlang: (JSONObject) -> Unit,
+) {
     var periode by remember { mutableStateOf(7) }
     var hari by remember { mutableStateOf<JSONObject?>(null) }
+    var bonTerakhir by remember { mutableStateOf<List<JSONObject>>(emptyList()) }
     var rentang by remember { mutableStateOf<JSONObject?>(null) }
     var memuat by remember { mutableStateOf(true) }
     var galat by remember { mutableStateOf<String?>(null) }
@@ -41,11 +46,16 @@ fun LayarLaporan(sesi: Sesi.Info) {
         galat = null
         val h = Api.laporanHarian(sesi.token)
         val p = Api.laporanPeriode(sesi.token, periode)
+        val trx = Api.transaksi(sesi.token, null, 8)
         if (h == null && p == null) {
             galat = Api.lastError ?: "Gagal memuat laporan"
         } else {
             hari = h
             rentang = p
+            val arr = trx?.optJSONArray("transaksi")
+            val list = mutableListOf<JSONObject>()
+            if (arr != null) for (i in 0 until arr.length()) arr.optJSONObject(i)?.let { list += it }
+            bonTerakhir = list
         }
         memuat = false
     }
@@ -102,6 +112,42 @@ fun LayarLaporan(sesi: Sesi.Info) {
                     BarisInfo("Cuci", Rp(h.optInt("cuci", 0)))
                     BarisInfo("Kantin", Rp(h.optInt("kantin", 0)))
                     BarisInfo("Diskon", Rp(h.optInt("diskon", 0)))
+                }
+
+                if (bonTerakhir.isNotEmpty()) {
+                    JudulKecil("Bon terakhir")
+                    Kartu {
+                        bonTerakhir.forEach { t ->
+                            Row(
+                                Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        t.optString("nomorBon", "-") + " · " + t.optString("plat", "-"),
+                                        fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Teks
+                                    )
+                                    Text(
+                                        Fmt.jam(t.optString("createdAt")) + " · " +
+                                            if (t.optString("status") == "bayar") "lunas" else "belum bayar",
+                                        fontSize = 10.sp,
+                                        color = if (t.optString("status") == "bayar") TeksRedup else OranyeTeks
+                                    )
+                                }
+                                Text(
+                                    Rp(t.optInt("total", 0)), fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold, color = Teks
+                                )
+                                Text(
+                                    "cetak",
+                                    fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Biru,
+                                    modifier = Modifier
+                                        .clickable { onCetakUlang(t) }
+                                        .padding(start = 10.dp)
+                                )
+                            }
+                        }
+                    }
                 }
 
                 val metode = h.optJSONObject("byMetode")

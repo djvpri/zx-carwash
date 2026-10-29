@@ -104,6 +104,7 @@ private sealed class Layar {
     data object Menu : Layar()
     data object Member : Layar()
     data object Shift : Layar()
+    data object Layanan : Layar()
     data class Bayar(val bon: Bon) : Layar()
     data object Pengaturan : Layar()
 }
@@ -128,6 +129,11 @@ fun App(db: Db, izinBluetooth: (() -> Unit) -> Unit) {
 
     DisposableEffect(Unit) {
         BluetoothPrinter.onStateChange = { printerOn = it }
+        // sambung ulang printer terakhir tanpa perlu memilih lagi tiap buka app
+        val alamat = db.bacaPengaturanMentah()["printer_addr"]
+        if (!printerOn && !alamat.isNullOrBlank()) {
+            izinBluetooth { BluetoothPrinter.autoConnect(alamat) { printerOn = BluetoothPrinter.connected() } }
+        }
         onDispose { BluetoothPrinter.onStateChange = null }
     }
 
@@ -229,7 +235,9 @@ fun App(db: Db, izinBluetooth: (() -> Unit) -> Unit) {
                     }
                 )
 
-                is Layar.Antrian -> LayarAntrian(sesi = sesiAktif) { id, status, selesai ->
+                is Layar.Antrian -> LayarAntrian(
+                    sesi = sesiAktif,
+                    onUbahStatus = { id, status, selesai ->
                     scope.launch {
                         val o = withContext(Dispatchers.IO) { Api.ubahAntrian(sesiAktif.token, id, status) }
                         if (o == null) {
@@ -238,9 +246,90 @@ fun App(db: Db, izinBluetooth: (() -> Unit) -> Unit) {
                             selesai()
                         }
                     }
-                }
+                    },
+                    onCetakTiket = { a ->
+                        val trx = a.optJSONObject("transaksi")
+                        izinBluetooth {
+                            val bytes = Tiket.bytes(
+                                namaUsaha = pengaturan.namaUsaha,
+                                nomorBon = trx?.optString("nomorBon") ?: "-",
+                                bay = a.optJSONObject("bay")?.optString("nama") ?: "-",
+                                plat = trx?.optString("plat") ?: "-",
+                                jenis = trx?.optString("jenis") ?: "-",
+                                paket = trx?.optString("layanan") ?: "Cuci",
+                                durasiMenit = 30,
+                                jam = Fmt.millis(
+                                    if (a.isNull("mulaiAt")) a.optString("createdAt")
+                                    else a.optString("mulaiAt")
+                                ) ?: System.currentTimeMillis()
+                            )
+                            val err = BluetoothPrinter.write(bytes)
+                            Toast.makeText(ctx, err ?: "Tiket dikirim ke printer", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                )
 
-                is Layar.Laporan -> LayarLaporan(sesi = sesiAktif)
+                is Layar.Laporan -> LayarLaporan(
+                    sesi = sesiAktif,
+                    onCetakUlang = { t ->
+                        // struk dicetak dari data server: bon lama tidak selalu ada
+                        // di SQLite lokal, jadi bangun Bon dari JSON
+                        val items = mutableListOf<ItemBon>()
+                        val arr = t.optJSONArray("items")
+                        if (arr != null) {
+                            for (i in 0 until arr.length()) {
+                                val it2 = arr.optJSONObject(i) ?: continue
+                                items += ItemBon(
+                                    tipe = it2.optString("tipe", "cuci"),
+                                    nama = it2.optString("nama", "-"),
+                                    harga = it2.optInt("harga", 0),
+                                    qty = it2.optInt("qty", 1),
+                                    refId = it2.optString("refId", ""),
+                                )
+                            }
+                        }
+                        val bon = Bon(
+                            nomor = t.optString("nomorBon", "-"),
+                            plat = t.optString("plat", "-"),
+                            jenis = t.optString("jenis", "-"),
+                            items = items,
+                            diskon = t.optInt("diskon", 0),
+                            metode = t.optString("metode", "Tunai").replaceFirstChar { it.uppercase() },
+                            dibayar = t.optInt("dibayar", 0),
+                            createdAt = Fmt.millis(t.optString("createdAt")) ?: System.currentTimeMillis(),
+                        )
+                        izinBluetooth {
+                            val err = BluetoothPrinter.write(Struk.bytes(bon, pengaturan))
+                            Toast.makeText(ctx, err ?: "Struk dikirim ulang ke printer",
+                                Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                )
+
+                is Layar.Layanan -> LayarLayanan(
+                    sesi = sesiAktif,
+                    onSimpanPaket = { o, selesai ->
+                        scope.launch {
+                            val r = withContext(Dispatchers.IO) { Api.simpanPaket(sesiAktif.token, o) }
+                            if (r == null) Toast.makeText(ctx, Api.lastError ?: "Gagal simpan paket",
+                                Toast.LENGTH_LONG).show() else {
+                                // tarik master ulang: peta nama→id dipakai bon berikutnya
+                                withContext(Dispatchers.IO) { Sesi.tarikMaster(db, sesiAktif) }
+                                selesai()
+                            }
+                        }
+                    },
+                    onSimpanAddon = { o, selesai ->
+                        scope.launch {
+                            val r = withContext(Dispatchers.IO) { Api.simpanAddon(sesiAktif.token, o) }
+                            if (r == null) Toast.makeText(ctx, Api.lastError ?: "Gagal simpan add-on",
+                                Toast.LENGTH_LONG).show() else {
+                                withContext(Dispatchers.IO) { Sesi.tarikMaster(db, sesiAktif) }
+                                selesai()
+                            }
+                        }
+                    }
+                )
 
                 is Layar.Menu -> LayarMenu(
                     sesi = sesiAktif,
@@ -311,6 +400,17 @@ fun App(db: Db, izinBluetooth: (() -> Unit) -> Unit) {
                                 Toast.LENGTH_LONG).show() else {
                                 Toast.makeText(ctx, "Bon lunas", Toast.LENGTH_SHORT).show()
                                 selesai()
+                            }
+                        }
+                    },
+                    onRekap = { id, hasil ->
+                        scope.launch {
+                            val r = withContext(Dispatchers.IO) { Api.rekapShift(sesiAktif.token, id) }
+                            if (r == null) {
+                                Toast.makeText(ctx, Api.lastError ?: "Gagal memuat rekap", Toast.LENGTH_LONG).show()
+                                hasil(null)
+                            } else {
+                                hasil(r)
                             }
                         }
                     }
@@ -392,6 +492,7 @@ fun App(db: Db, izinBluetooth: (() -> Unit) -> Unit) {
                     onScanPrinter = { dialogPrinter = true },
                     onBukaLaporan = { layar = Layar.Laporan },
                     onBukaMember = { layar = Layar.Member },
+                    onBukaLayanan = { layar = Layar.Layanan },
                     sesi = sesiAktif,
                     onKirimSekarang = {
                         scope.launch {
@@ -450,6 +551,10 @@ fun App(db: Db, izinBluetooth: (() -> Unit) -> Unit) {
                             TextButton(onClick = {
                                 val addr = d.address ?: return@TextButton
                                 val err = BluetoothPrinter.connect(addr)
+                                if (err == null) {
+                                    // simpan supaya sesi berikutnya tidak perlu pilih manual
+                                    db.tulisPengaturanMentah(mapOf("printer_addr" to addr, "printer_nama" to (d.name ?: addr)))
+                                }
                                 dialogPrinter = false
                                 Toast.makeText(ctx, err ?: "Tersambung ke ${d.name}", Toast.LENGTH_SHORT).show()
                             }) { Text(d.name ?: d.address, fontSize = 14.sp) }
