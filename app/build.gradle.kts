@@ -28,8 +28,8 @@ android {
         applicationId = "com.zomet.zxcarwash"
         minSdk = 26
         targetSdk = 36
-        versionCode = 10
-        versionName = "0.6.3"
+        versionCode = 11
+        versionName = "0.6.4"
         buildConfigField("String", "REPO_RILIS", "\"$repoRilis\"")
         buildConfigField("String", "API_BASE", "\"$apiBase\"")
     }

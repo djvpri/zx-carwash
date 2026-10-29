@@ -205,7 +205,8 @@ fun App(db: Db, izinBluetooth: (() -> Unit) -> Unit) {
                     Column {
                         Text(pengaturan.namaUsaha.take(22), fontSize = 16.sp, fontWeight = FontWeight.ExtraBold)
                         Text(
-                            "Outlet Melati · ${if (pending == 0) "tersinkron" else "$pending antre sync"}",
+                            (pengaturan.namaUsaha.take(24)) +
+                                " · " + (if (pending == 0) "tersinkron" else "$pending antre sync"),
                             fontSize = 10.sp, color = TeksRedup
                         )
                     }
