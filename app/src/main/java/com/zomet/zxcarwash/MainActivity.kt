@@ -88,6 +88,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         tokenDariLink = ambilToken(intent)
         val db = Db(this)
+        Api.pasangBase(db.bacaPengaturanMentah()["server_url"])
         setContent {
             MaterialTheme(colorScheme = lightColorScheme(primary = Biru)) {
                 App(db) { cb -> pastikanIzinBluetooth(cb) }
@@ -129,8 +130,11 @@ fun App(db: Db, izinBluetooth: (() -> Unit) -> Unit) {
     LaunchedEffect(sesi) {
         val s0 = sesi ?: return@LaunchedEffect
         withContext(Dispatchers.IO) {
-            Sesi.tarikMaster(db, s0)
-            Sesi.kirimOutbox(ctx, db, s0)
+            if (!Sesi.tarikMaster(db, s0)) {
+                // token 60 menit bisa kedaluwarsa; refresh dulu sebelum menyerah
+                Sesi.perbaruiToken(ctx, db)?.let { Sesi.baca(db) }?.let { Sesi.tarikMaster(db, it) }
+            }
+            Sesi.baca(db)?.let { Sesi.kirimOutbox(ctx, db, it) }
         }
         pending = db.pendingSync()
         pengaturan = db.bacaPengaturan()
@@ -308,8 +312,12 @@ fun App(db: Db, izinBluetooth: (() -> Unit) -> Unit) {
                         }
                     },
                     onKeluar = {
-                        Sesi.keluar(db)
-                        sesi = null
+                        scope.launch {
+                            val r = Sesi.refreshToken(db)
+                            if (r != null) withContext(Dispatchers.IO) { Api.logout(r) }
+                            Sesi.keluar(db)
+                            sesi = null
+                        }
                     }
                 )
             }

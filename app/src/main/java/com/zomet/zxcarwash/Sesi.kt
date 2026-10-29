@@ -22,6 +22,7 @@ object Sesi {
     private const val K_USAHA = "auth_usaha"
     private const val K_LOGIN_AT = "auth_login_at"
     private const val K_MASTER_VERSI = "master_versi"
+    private const val K_REFRESH = "auth_refresh"
 
     data class Info(
         val token: String,
@@ -53,21 +54,37 @@ object Sesi {
         val user = o.optJSONObject("user") ?: JSONObject()
         val tenant = o.optJSONObject("tenant") ?: JSONObject()
         val outletId = if (o.isNull("outletId")) null else o.optString("outletId").takeIf { it.isNotBlank() }
-        db.tulisPengaturanMentah(
-            mapOf(
-                K_TOKEN to o.optString("accessToken", ""),
-                K_EMAIL to user.optString("email", ""),
-                K_NAMA to user.optString("nama", ""),
-                K_OUTLET to (outletId ?: ""),
-                K_OUTLET_NAMA to (o.optString("outletNama", "")),
-                K_USAHA to tenant.optString("nama", ""),
-                K_LOGIN_AT to System.currentTimeMillis().toString(),
-            )
+        val peta = mutableMapOf(
+            K_TOKEN to o.optString("accessToken", ""),
+            K_EMAIL to user.optString("email", ""),
+            K_NAMA to user.optString("nama", ""),
+            K_OUTLET to (outletId ?: ""),
+            K_OUTLET_NAMA to (o.optString("outletNama", "")),
+            K_USAHA to tenant.optString("nama", ""),
+            K_LOGIN_AT to System.currentTimeMillis().toString(),
         )
+        // refreshToken hanya ada di jalur login/refresh, tidak di SSO exchange
+        val refresh = o.optString("refreshToken", "")
+        if (refresh.isNotBlank()) peta[K_REFRESH] = refresh
+        db.tulisPengaturanMentah(peta)
+    }
+
+    fun refreshToken(db: Db): String? =
+        db.bacaPengaturanMentah()[K_REFRESH]?.takeIf { it.isNotBlank() }
+
+    /**
+     * Perbarui access token memakai refresh token tersimpan.
+     * @return token akses baru, atau null kalau refresh ditolak (perlu login ulang).
+     */
+    fun perbaruiToken(ctx: Context, db: Db): String? {
+        val r = refreshToken(db) ?: return null
+        val o = Api.refresh(r, Api.deviceId(ctx)) ?: return null
+        simpan(db, o)
+        return o.optString("accessToken", "").takeIf { it.isNotBlank() }
     }
 
     fun keluar(db: Db) = db.hapusPengaturanMentah(
-        listOf(K_TOKEN, K_EMAIL, K_NAMA, K_OUTLET, K_OUTLET_NAMA, K_USAHA, K_LOGIN_AT, K_MASTER_VERSI)
+        listOf(K_TOKEN, K_EMAIL, K_NAMA, K_OUTLET, K_OUTLET_NAMA, K_USAHA, K_LOGIN_AT, K_MASTER_VERSI, K_REFRESH)
     )
 
     // ---------- tarik master ----------

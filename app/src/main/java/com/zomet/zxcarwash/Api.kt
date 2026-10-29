@@ -16,8 +16,17 @@ import java.net.URL
  */
 object Api {
 
-    /** Diisi dari gradle.properties → buildConfigField API_BASE. */
-    val BASE: String get() = BuildConfig.API_BASE.trimEnd('/')
+    /** Alamat server: bawaan dari BuildConfig, bisa ditimpa kasir (tekan lama). */
+    const val BASE_BAWAAN: String = "" // diisi di init karena BuildConfig tidak const
+    private var baseOverride: String? = null
+
+    /** Dipasang sekali saat app start dari nilai tersimpan. */
+    fun pasangBase(url: String?) {
+        baseOverride = url?.trim()?.trimEnd('/')?.takeIf { it.startsWith("http") }
+    }
+
+    val BASE: String
+        get() = baseOverride ?: BuildConfig.API_BASE.trimEnd('/')
 
     private const val TIMEOUT = 20_000
     private const val SYNC_TIMEOUT = 40_000
@@ -97,6 +106,37 @@ object Api {
     fun ssoExchange(token: String, deviceId: String): JSONObject? {
         val body = JSONObject().put("token", token).put("deviceId", deviceId).toString()
         return sukses(kirim("/v1/auth/sso/exchange", "POST", body, null))
+    }
+
+    // ---------- Login email + password (pola sama dengan AcuMedis) ----------
+
+    /** POST /v1/auth/login {email, password, deviceId} → sesi + refreshToken */
+    fun login(email: String, password: String, deviceId: String): JSONObject? {
+        val body = JSONObject()
+            .put("email", email)
+            .put("password", password)
+            .put("deviceId", deviceId)
+            .toString()
+        return sukses(kirim("/v1/auth/login", "POST", body, null))
+    }
+
+    /** POST /v1/auth/refresh {refreshToken} — token lama dicabut, dapat yang baru. */
+    fun refresh(refreshToken: String, deviceId: String): JSONObject? {
+        val body = JSONObject().put("refreshToken", refreshToken).put("deviceId", deviceId).toString()
+        return sukses(kirim("/v1/auth/refresh", "POST", body, null))
+    }
+
+    fun logout(refreshToken: String): Boolean {
+        val body = JSONObject().put("refreshToken", refreshToken).toString()
+        return sukses(kirim("/v1/auth/logout", "POST", body, null)) != null
+    }
+
+    /** POST /v1/auth/password {passwordLama, passwordBaru} */
+    fun gantiPassword(token: String, lama: String, baru: String): String? {
+        val body = JSONObject().put("passwordLama", lama).put("passwordBaru", baru).toString()
+        val h = kirim("/v1/auth/password", "POST", body, token)
+        if (h.kode in 200..299) return null
+        return pesanDari(h.isi)
     }
 
     // ---------- Data ----------
