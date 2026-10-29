@@ -175,6 +175,70 @@ object Api {
     /** GET /v1/sync/status — untuk badge di beranda. */
     fun syncStatus(token: String): JSONObject? = sukses(kirim("/v1/sync/status", "GET", null, token))
 
+    // ---------- Antrian & laporan ----------
+
+    /** GET /v1/antrian?status= — papan bay. `status=null` berarti semua. */
+    fun antrian(token: String, status: String? = null): JSONObject? {
+        val q = if (status.isNullOrBlank()) "" else "?status=$status"
+        return sukses(kirim("/v1/antrian$q", "GET", null, token))
+    }
+
+    /** PATCH /v1/antrian/:id {status} */
+    fun ubahAntrian(token: String, id: String, status: String): JSONObject? {
+        val body = JSONObject().put("status", status).toString()
+        return sukses(kirim("/v1/antrian/$id", "PATCH", body, token))
+    }
+
+    /** GET /v1/laporan/harian — tanpa tanggal berarti hari ini (WIB). */
+    fun laporanHarian(token: String, tanggal: String? = null): JSONObject? {
+        val q = if (tanggal.isNullOrBlank()) "" else "?tanggal=$tanggal"
+        return sukses(kirim("/v1/laporan/harian$q", "GET", null, token))
+    }
+
+    /** GET /v1/laporan/periode — `hari` = 7 berarti 7 hari terakhir termasuk hari ini. */
+    fun laporanPeriode(token: String, hari: Int): JSONObject? {
+        val sampai = java.time.LocalDate.now()
+        val dari = sampai.minusDays((hari - 1).toLong())
+        return sukses(
+            kirim("/v1/laporan/periode?dari=$dari&sampai=$sampai", "GET", null, token)
+        )
+    }
+
+    /** GET /v1/license — status langganan dari server. */
+    fun lisensi(token: String): JSONObject? =
+        sukses(kirim("/v1/license", "GET", null, token))?.optJSONObject("lisensi")
+
+    /** POST /v1/shift/buka {kasAwal} */
+    fun bukaShift(token: String, kasAwal: Int): JSONObject? {
+        val body = JSONObject().put("kasAwal", kasAwal).toString()
+        return sukses(kirim("/v1/shift/buka", "POST", body, token))
+    }
+
+    /** POST /v1/shift/tutup {kasFisik} */
+    fun tutupShift(token: String, kasFisik: Int, catatan: String? = null): JSONObject? {
+        val body = JSONObject().put("kasFisik", kasFisik)
+        if (!catatan.isNullOrBlank()) body.put("catatan", catatan)
+        return sukses(kirim("/v1/shift/tutup", "POST", body.toString(), token))
+    }
+
+    /** GET /v1/shift — shift aktif + riwayat. */
+    fun shift(token: String): JSONObject? = sukses(kirim("/v1/shift", "GET", null, token))
+
+    /** POST /v1/transaksi/:id/bayar {metode, dibayar} — melunasi bon yang masih open. */
+    fun bayarBon(token: String, id: String, metode: String, dibayar: Int): JSONObject? {
+        val body = JSONObject().put("metode", metode).put("dibayar", dibayar).toString()
+        return sukses(kirim("/v1/transaksi/$id/bayar", "POST", body, token))
+    }
+
+    /** GET /v1/transaksi?status=open — daftar piutang. */
+    fun transaksi(token: String, status: String? = null, limit: Int = 50): JSONObject? {
+        val q = buildString {
+            append("/v1/transaksi?limit=").append(limit)
+            if (!status.isNullOrBlank()) append("&status=").append(status)
+        }
+        return sukses(kirim(q, "GET", null, token))
+    }
+
     /** Model perangkat untuk deviceId — cukup untuk membedakan HP kasir. */
     fun deviceId(ctx: Context): String =
         (android.provider.Settings.Secure.getString(ctx.contentResolver, android.provider.Settings.Secure.ANDROID_ID) ?: "hp")

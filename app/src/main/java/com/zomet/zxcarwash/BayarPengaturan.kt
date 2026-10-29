@@ -136,6 +136,11 @@ fun LayarPengaturan(
     onCekUpdate: () -> Unit,
     onPasang: () -> Unit,
     onScanPrinter: () -> Unit,
+    lisensiPlan: String,
+    lisensiAktif: Boolean,
+    lisensiSampai: String,
+    lisensiSisa: String,
+    lisensiDariServer: Boolean,
     onKirimSekarang: () -> Unit,
     onTarikMaster: () -> Unit,
     onKeluar: () -> Unit,
@@ -159,22 +164,39 @@ fun LayarPengaturan(
                     fontSize = 10.sp, color = TeksRedup)
             }
 
-            JudulKecil("Lisensi")
+            JudulKecil("Langganan")
             Kartu {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text(p.paket, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = Teks)
-                        Text("1 outlet · 4 bay · 3 kasir", fontSize = 11.sp, color = TeksRedup)
+                        Text(lisensiPlan, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = Teks)
+                        Text(
+                            if (lisensiAktif) "langganan aktif" else "langganan tidak aktif",
+                            fontSize = 11.sp,
+                            color = if (lisensiAktif) HijauTeks else OranyeTeks
+                        )
                     }
-                    Text("Aktif", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = OranyeTeks,
-                        modifier = Modifier.border(1.dp, Oranye, RoundedCornerShape(50))
+                    Text(
+                        if (lisensiAktif) "Aktif" else "Habis",
+                        fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                        color = if (lisensiAktif) HijauTeks else OranyeTeks,
+                        modifier = Modifier.border(
+                            1.dp, if (lisensiAktif) HijauTeks else Oranye, RoundedCornerShape(50)
+                        )
                             .background(TampilanChip(), RoundedCornerShape(50))
-                            .padding(horizontal = 10.dp, vertical = 5.dp))
+                            .padding(horizontal = 10.dp, vertical = 5.dp)
+                    )
                 }
                 Spacer(Modifier.height(8.dp))
-                BarisInfo("Berlaku sampai", p.berlakuSampai)
-                BarisInfo("ID lisensi", p.idLisensi)
-                BarisInfo("Antrean sync", "$pendingSync transaksi")
+                BarisInfo("Berlaku sampai", lisensiSampai)
+                BarisInfo("Sisa", lisensiSisa)
+                if (lisensiDariServer) {
+                    BarisInfo("Sumber", "server Z One")
+                } else {
+                    Text(
+                        "Status lisensi belum terbaca dari server — tekan Tarik master.",
+                        fontSize = 10.sp, color = TeksRedup, modifier = Modifier.padding(top = 6.dp)
+                    )
+                }
             }
 
             JudulKecil("Akun & sinkronisasi")
@@ -286,7 +308,7 @@ private fun FieldRingkas(label: String, nilai: String, banyakBaris: Boolean = fa
 }
 
 @Composable
-private fun BarisInfo(label: String, nilai: String) {
+fun BarisInfo(label: String, nilai: String) {
     Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
         Text(label, fontSize = 12.sp, color = TeksRedup)
         Text(nilai, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Teks)

@@ -99,6 +99,8 @@ class MainActivity : ComponentActivity() {
 
 private sealed class Layar {
     data object Kasir : Layar()
+    data object Antrian : Layar()
+    data object Laporan : Layar()
     data class Bayar(val bon: Bon) : Layar()
     data object Pengaturan : Layar()
 }
@@ -115,6 +117,7 @@ fun App(db: Db, izinBluetooth: (() -> Unit) -> Unit) {
     var pengaturan by remember { mutableStateOf(db.bacaPengaturan()) }
     var pending by remember { mutableStateOf(db.pendingSync()) }
     var statusUpdate by remember { mutableStateOf<String?>(null) }
+    var lisensi by remember { mutableStateOf(Sesi.lisensi(db)) }
     var printerOn by remember { mutableStateOf(BluetoothPrinter.connected()) }
     var dialogPrinter by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -138,6 +141,7 @@ fun App(db: Db, izinBluetooth: (() -> Unit) -> Unit) {
         }
         pending = db.pendingSync()
         pengaturan = db.bacaPengaturan()
+        lisensi = Sesi.lisensi(db)
     }
 
     // Auto-cek update sekali saat app dibuka (kalau diaktifkan).
@@ -194,11 +198,11 @@ fun App(db: Db, izinBluetooth: (() -> Unit) -> Unit) {
         bottomBar = {
             NavigationBar(containerColor = Kartu) {
                 NavItem("Kasir", Icons.Default.Payments, layar is Layar.Kasir) { layar = Layar.Kasir }
-                NavItem("Antrian", Icons.Default.FormatListNumbered, false) {
-                    Toast.makeText(ctx, "Antrian: fase berikutnya", Toast.LENGTH_SHORT).show()
+                NavItem("Antrian", Icons.Default.FormatListNumbered, layar is Layar.Antrian) {
+                    layar = Layar.Antrian
                 }
-                NavItem("Menu", Icons.Default.Restaurant, false) {
-                    Toast.makeText(ctx, "Kelola menu: fase berikutnya", Toast.LENGTH_SHORT).show()
+                NavItem("Laporan", Icons.Default.BarChart, layar is Layar.Laporan) {
+                    layar = Layar.Laporan
                 }
                 NavItem("Lainnya", Icons.Default.Settings, layar is Layar.Pengaturan) {
                     layar = Layar.Pengaturan
@@ -222,6 +226,19 @@ fun App(db: Db, izinBluetooth: (() -> Unit) -> Unit) {
                         layar = Layar.Bayar(bon)
                     }
                 )
+
+                is Layar.Antrian -> LayarAntrian(sesi = sesiAktif) { id, status, selesai ->
+                    scope.launch {
+                        val o = withContext(Dispatchers.IO) { Api.ubahAntrian(sesiAktif.token, id, status) }
+                        if (o == null) {
+                            Toast.makeText(ctx, Api.lastError ?: "Gagal ubah antrian", Toast.LENGTH_LONG).show()
+                        } else {
+                            selesai()
+                        }
+                    }
+                }
+
+                is Layar.Laporan -> LayarLaporan(sesi = sesiAktif)
 
                 is Layar.Bayar -> LayarBayar(
                     bon = l.bon, pengaturan = pengaturan,
@@ -256,6 +273,17 @@ fun App(db: Db, izinBluetooth: (() -> Unit) -> Unit) {
                     p = pengaturan, versi = BuildConfig.VERSION_NAME,
                     pendingSync = pending, statusUpdate = statusUpdate,
                     printerTersambung = printerOn,
+                    lisensiPlan = lisensi?.optString("plan")?.replaceFirstChar { it.uppercase() }
+                        ?: pengaturan.paket,
+                    lisensiAktif = lisensi?.optBoolean("aktif") ?: true,
+                    lisensiSampai = lisensi?.let { l ->
+                        if (l.isNull("sampai")) "-" else Fmt.tanggalPanjang(l.optString("sampai"))
+                    } ?: pengaturan.berlakuSampai,
+                    lisensiSisa = lisensi?.let { l ->
+                        val s = if (l.isNull("sisaHari")) null else l.optInt("sisaHari")
+                        if (s == null) "-" else "$s hari lagi"
+                    } ?: "-",
+                    lisensiDariServer = lisensi != null,
                     onSimpan = {
                         db.simpanPengaturan(it); pengaturan = it
                         Toast.makeText(ctx, "Pengaturan tersimpan", Toast.LENGTH_SHORT).show()

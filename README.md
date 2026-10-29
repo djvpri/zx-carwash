@@ -12,13 +12,18 @@ Kasir Android untuk usaha **cuci mobil + kantin**: satu bon gabungan, offline-fi
 |---|---|
 | Kasir bon gabungan (cuci + add-on + kantin) | ada |
 | Hitung subtotal per modul, diskon bon, kembalian | ada |
-| Simpan ke SQLite lokal + baris outbox (belum kirim ke server) | ada |
+| Login email+password (pola AcuMedis) + SSO Z One | ada |
+| Tarik master dari server (paket, add-on, produk, pengaturan) | ada |
+| Simpan ke SQLite lokal + kirim outbox ke server (idempoten) | ada |
+| Tab Antrian per bay (mulai / selesai / diambil) | ada |
+| Tab Laporan (hari ini, 7/30 hari, grafik harian, komisi) | ada |
+| Lisensi dibaca dari server | ada |
 | Struk thermal ESC/POS 58mm + pratinjau 32 kolom | ada |
 | Printer Bluetooth SPP (pairing, monitor putus, reconnect) | ada |
 | Pengaturan usaha: nama, alamat, no HP, catatan nota | ada |
 | Lisensi (paket, berlaku sampai, sisa, ID) — tampil saja | ada |
 | Cek update manual + auto-cek saat app dibuka (GitHub Releases) | ada |
-| Login SSO ZOne, antrian bay, laporan, tutup kasir, sync server | belum |
+| Buka/tutup shift, member, stok kantin, kelola menu | belum |
 
 ## Build
 

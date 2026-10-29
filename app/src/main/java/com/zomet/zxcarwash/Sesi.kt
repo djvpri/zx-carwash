@@ -23,6 +23,7 @@ object Sesi {
     private const val K_LOGIN_AT = "auth_login_at"
     private const val K_MASTER_VERSI = "master_versi"
     private const val K_REFRESH = "auth_refresh"
+    private const val K_LISENSI = "lisensi_json"
 
     data class Info(
         val token: String,
@@ -127,8 +128,16 @@ object Sesi {
             )
         }
         db.tulisPengaturanMentah(mapOf(K_MASTER_VERSI to o.optString("versi", "")))
+
+        // status langganan ikut disegarkan supaya kartu Lisensi tidak menampilkan
+        // angka bawaan app
+        Api.lisensi(sesi.token)?.let { db.tulisPengaturanMentah(mapOf(K_LISENSI to it.toString())) }
         return true
     }
+
+    /** Status lisensi terakhir dari server; null kalau belum pernah terbaca. */
+    fun lisensi(db: Db): org.json.JSONObject? =
+        db.bacaPengaturanMentah()[K_LISENSI]?.let { runCatching { org.json.JSONObject(it) }.getOrNull() }
 
     // ---------- antrean sync ----------
 
